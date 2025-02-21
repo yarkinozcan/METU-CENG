@@ -1,0 +1,140 @@
+#/* $begin to_binary_string-ys */
+##################################################################
+# to_binary_string.ys - Convert an arr block of len integers to 
+# binary strings and store in buff
+# Return the sum of integers contained in arr.
+# Yarkın ÖZCAN 2580835
+# When I look the overall structure of the Y86-64 assembly code, I realized that the shifting operation in the inner loop takes so much cycles. And after that I figured out that inner for loop is always executed 8 times. So instead of doing all shifting operations and checking if the loop is completed. I manually checked each 8 bytes of the val. It reduced CPE from 384 to 89. After that, I realized there are some registers that I am not using and in the loop im using some numbers again and again. For instance, when assigning '0' or '1', I use 48 and 49 again and again. Other than that, I noticed that in each loop I need the powers of 2 (128, 64, 32) so I stored those constants in there aswell. This optimization reduced the CPE to 62. Then I realized that the variable temp is redundant, instead of storing updating the temp each time I can just update the buff. So after deleting the temp I get the CPE of 53. And lastly, instead of incrementing the buff one by one after each val and pow comparison, I updated the buff and end of the loop by adding 8 to it. And after this final optimization I get the CPE of 45.
+##################################################################
+# Do not modify this portion
+# Function prologue.
+# %rdi = arr, %rsi = buff, %rdx = len
+to_binary_string:
+##################################################################
+# You can modify this portion
+    # Loop header
+    xorq %rax,%rax           # sum = 0;
+    andq %rdx,%rdx
+    jle Done
+    /* Setting up the constants to avoid assigning constants inside the loop. So when we need for instance 128 inside loop, instead of assigning over and over againg for each while loop, we can just assign it once at the beginning and use it in the loop. */
+    irmovq $1, %r13          # Save constant 1
+    irmovq $8, %r8	     # Save constant 8
+    irmovq $48, %r11         # Save constant 48 (used in assigning '0')
+    irmovq $49, %r12         # Save constant 49 (used in assigning '1')
+    irmovq $128, %r14        # Save constant 128
+    irmovq $64, %rbp         # Save constant 64
+    irmovq $32, %rbx         # Save constant 32
+    irmovq $16, %r10         # Save constant 16
+
+/* The while loop and the only loop used. There is no inner for loop since each time the inner for loop will execute 8 times no matter what the input is. So instead of doing all shift operations and checks, I just write the whole process 8 times. First time pow being 128, then 64 and so on.... However we cannot omit the outer while loop because the input arr len is unknown and we cannot just manually do it as len(arr) times since it is unknown */
+Loop:
+    mrmovq (%rdi), %r9       # read val from arr...
+    addq %r9, %rax           # sum += val
+    
+    cmpq %r14, %r9	     # check if val < 128
+    jl otw1                  # If so add '0' to (%rsi)
+    
+    
+    /* Else part */
+    /* Instead of assigning buff to temp each time we can just increment buff instead so that we save a register to use saving a constant and also we save time by ingoring the assignment time */
+    rmmovq %r12, (%rsi)      # *buff = '1'
+    subq %r14, %r9           # val -= 128;
+    jmp inner_updates1	     # continue with the next remaining bytes 
+
+/* if  val < 128 */
+otw1:   
+    rmmovq %r11, (%rsi)      # *buff = '0'
+inner_updates1:  
+    cmpq %rbp, %r9 	     # check if val < 64
+    jl otw2                  # if so, add '0' to 1(%rsi)
+    
+    /* Else part */
+    rmmovq %r12, 1(%rsi)     # *buff = '1'
+    subq %rbp, %r9           # val -= 64;
+    jmp inner_updates2       # continue with the next remaining bytes
+/* if val < 64 */
+otw2:   
+    rmmovq %r11, 1(%rsi)     # *buff = '0'
+inner_updates2:  
+    cmpq %rbx, %r9	     # check if val < 32
+    jl otw3                  # if so, add '0' to 2(%rsi)
+    
+    rmmovq %r12, 2(%rsi)     # *buff = '1'
+    subq %rbx, %r9           # val -= 32;
+    jmp inner_updates3	     # continue with the next remaining bytes
+/* if val < 32 */
+otw3:   
+    rmmovq %r11, 2(%rsi)     # *buff = '0'
+inner_updates3:  
+    cmpq %r10, %r9	     # check if val < 16
+    jl otw4                  # if so, add '0' to 3(%rsi)
+    
+    rmmovq %r12, 3(%rsi)     # *buff = '1'
+    subq %r10, %r9           # val -= 16;
+    jmp inner_updates4	     # continue with the next remaining bytes
+/* if val < 16 */ 
+otw4:   
+    rmmovq %r11, 3(%rsi)     # *buff = '0'
+inner_updates4:  
+    cmpq %r8, %r9	     # check if val < 8
+    jl otw5                  # if so, add '0' to 4(%rsi)
+    
+    subq %r8, %r9            # val -= 8
+    rmmovq %r12, 4(%rsi)     # *buff = '1'
+    jmp inner_updates5	     # continue with the next remaining bytes
+/* if val < 8 */ 
+otw5:   
+    rmmovq %r11, 4(%rsi)     # *buff = '0'
+inner_updates5:  
+    /* Since there are no more registers left to store a constant, we have to assign 4 to %rcx manually */
+    irmovq $4, %rcx          # pow = 4
+
+    cmpq %rcx, %r9	     # check if val >= pow
+    jl otw6                  # if so, add '0' to 5(%rsi)
+    
+    rmmovq %r12, 5(%rsi)     # *buff = '1'
+    subq %rcx, %r9           # val -= pow;
+    jmp inner_updates6	     # continue with the next remaining bytes
+/* if val < 4 */ 
+otw6:   
+    rmmovq %r11, 5(%rsi)     # *buff = '0'
+inner_updates6:
+    /* Since there are no more registers left to store a constant, we have to assign 4 to %rcx manually */
+    irmovq $2, %rcx          # pow = 2
+
+    cmpq %rcx, %r9	     # check if val < pow
+    jl otw7                  # if so, add '0' to 6(%rsi)
+    
+    rmmovq %r12, 6(%rsi)     # *buff = '1'
+    subq %rcx, %r9           # val -= pow;
+    jmp inner_updates7	     # continue with the next remaining bytes
+/* if val < 2 */ 
+otw7:   
+    rmmovq %r11, 6(%rsi)     # *buff = '0'
+inner_updates7:  
+    /* Since andq operation is more efficient than cmpq, we can use it here */
+    andq %r9,%r9	     # check if val > 0
+    jg otw8                  # if so, if so add '1' to 6(%rsi)
+    
+    rmmovq %r11, 7(%rsi)     # *buff = '0'
+    jmp updates		     # proceed with the updates (incrementing arr and buff)
+/* if val > 0 (val == 1) */ 
+otw8:   
+    subq %r13, %r9           # val -= pow
+    rmmovq %r12, 7(%rsi)     # *buff = '1'
+updates:
+    addq %r8, %rdi           # arr += 8 (get the next word_t in the array)
+    /* Instead of incrementing buff 8 times after each comparison between val and pow, we can just get the next 8 bytes manually and add buff 8 bytes at the end of the loop so that we save time by ignoring incrementing buff 8 times */
+    addq %r8, %rsi           # buff += 8
+    subq %r13, %rdx          # len-- (in order to avoid infinite loop)
+    andq %rdx,%rdx	     # check if len < 0
+    jg Loop		     # if so, continue with the loop
+##################################################################
+# Do not modify the following section of code
+# Function epilogue.
+Done:
+    ret
+##################################################################
+# Keep the following label at the end of your function
+End:
+#/* $end to_binary_string-ys */

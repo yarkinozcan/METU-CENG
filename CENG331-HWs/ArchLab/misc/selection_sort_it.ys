@@ -1,0 +1,107 @@
+/* Yarkın ÖZCAN 2580835 */
+
+.pos 0x0
+    irmovq stack, %rsp          # Set up the stack pointer
+    irmovq head, %rdi           # Load the address of the linked list's head
+    call selection_sort_it      # Call the selection sort function
+    halt                        # Halt the program
+
+/* Absolutely positioned here to debug addresses more easily. */
+.pos 0x200
+head:
+    .quad 17
+    .quad node1
+node1:
+    .quad 24
+    .quad node2
+node2:
+    .quad 6
+    .quad node3 
+node3:
+    .quad 11
+    .quad node4
+node4:
+    .quad 4
+    .quad node5
+node5:
+    .quad 5
+    .quad node6
+node6:
+    .quad 3
+    .quad node7
+node7:
+    .quad 40
+    .quad node8
+node8:
+    .quad 19
+    .quad node9
+node9:
+    .quad 52
+    .quad node10
+node10:
+    .quad 8
+    .quad 0  /* Remember that 0 is null. */
+
+
+selection_sort_it:
+    # Check if the list is empty or has only one node
+    rrmovq %rdi, %rax           # sorted = head (for first if condition)
+    mrmovq 8(%rdi), %rcx        # Load head->next
+    andq %rcx, %rcx             # Check if head->next == NULL
+    je Done                     # If only one node, return
+
+    irmovq $0, %rax             # sorted = NULL
+
+OuterLoop: /* Outer While Loop */
+    /* Check if unsorted list (head) is empty */
+    andq %rdi, %rdi             # If head == NULL
+    je Done                     # Jump to Done if head becomes NULL
+
+    /* Initialize variables for finding max */
+    rrmovq %rdi, %r8            # max = head (%r8 used as max)
+    irmovq $0, %r9              # prevMax = NULL (%r9 used as prevMax)
+    rrmovq %rdi, %r10           # curr = head (%r10 used as curr)
+    irmovq $0, %r11             # prev = NULL (%r11 used as prev)
+
+InnerLoop: /* Inner While Loop */
+    andq %r10, %r10             # Check if curr == NULL ()
+    je UpdateList               # If NULL, update the sorted list
+
+    mrmovq 0(%r10), %r14        # Savecurr->data in order to do substruction
+    mrmovq 0(%r8), %rbx         # Save max->data in order to do substruction
+    subq %r14, %rbx             # Compare curr->data > max->data
+    jge UpdateCurr              # If curr is not greater than max do not update max and update curr with the next node
+
+    /* Update max and prevMax */
+    rrmovq %r10, %r8            # max = curr
+    rrmovq %r11, %r9            # prevMax = prev
+
+UpdateCurr: /* Update the current node with the next one */
+    rrmovq %r10, %r11           # prev = curr        
+    mrmovq 8(%r10), %r10        # curr = curr->next
+    jmp InnerLoop               # Proceed with the next iteration
+
+UpdateList: /* Section where we update the sorted list */
+    /* Max is in the correct place right now */
+    rrmovq %r8, %r14            # Save max in order not to lose original max value when comparing
+    subq %rdi, %r14             # max == head
+    je UpdateHead               # If max is already the head node, update the head to its next node
+
+    # Update prevMax->next to skip max
+    mrmovq 8(%r8), %rbx         # Save max->next since there is no memory to memory operation
+    rmmovq %rbx, 8(%r9)         # prevMax->next = max->next
+    jmp PrependMaxToSorted      # Add max to sorted list
+
+UpdateHead: /* Executed only if head is the max node */
+    mrmovq 8(%r8), %rdi         # head = head->next
+
+PrependMaxToSorted:
+    /* Prepend the max node to the sorted list */
+    rmmovq %rax, 8(%r8)         # max->next = sorted
+    rrmovq %r8, %rax            # sorted = max
+    jmp OuterLoop               # Continue with the remaining of the list
+
+Done:
+    ret                         # Return sorted
+.pos 0x800
+stack:

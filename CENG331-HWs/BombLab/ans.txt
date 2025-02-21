@@ -1,0 +1,6 @@
+Your string is: Stay focused and never give up.
+3 6 11 18 27 38
+4 6 716
+7 18
+5 243
+5 1 2 3 4 6

@@ -1,0 +1,107 @@
+/* Yarkın ÖZCAN 2580835 */
+
+.pos 0x0
+    irmovq stack, %rsp          # Set up the stack pointer
+    irmovq head, %rdi           # Load the address of the linked list's head
+    call selection_sort_rec      # Call the selection sort function
+    halt                        # Halt the program
+
+/* Absolutely positioned here to debug addresses more easily. */
+.pos 0x200
+head:
+    .quad 17
+    .quad node1
+node1:
+    .quad 24
+    .quad node2
+node2:
+    .quad 6
+    .quad node3 
+node3:
+    .quad 11
+    .quad node4
+node4:
+    .quad 4
+    .quad node5
+node5:
+    .quad 5
+    .quad node6
+node6:
+    .quad 3
+    .quad node7
+node7:
+    .quad 40
+    .quad node8
+node8:
+    .quad 19
+    .quad node9
+node9:
+    .quad 52
+    .quad node10
+node10:
+    .quad 8
+    .quad 0  /* Remember that 0 is null. */
+selection_sort_rec:
+    rrmovq %rdi, %rax           # Save head to return value
+    mrmovq 8(%rdi), %rcx        # head->next
+    andq %rcx, %rcx             # Check if head->next == NULL
+    je Done                     # If only one node, return
+
+    rrmovq %rdi, %r8            # min = head (%r8 used as min)
+    irmovq $0, %r9              # prevMin = NULL (%r9 used as prevMin)
+    rrmovq %rdi, %r10           # curr = head (%r10 used as curr)
+
+ForLoop: /* Loop to find the min value */
+    # Check if curr->next is not null
+    mrmovq 8(%r10), %r14        # curr->next
+    andq %r14, %r14             # If curr->next == NULL (Loop Continue Condition)
+    je OutsideLoop              # jump OutsideLoop if curr->next = NULL
+
+    mrmovq 0(%r14), %r12        # load curr->next->data in order to do comparison
+    mrmovq 0(%r8), %r13         # load min->data in order to do comparison
+    subq %r12, %r13             # curr->next->data < min->data
+    jle LoopAdjust              # If curr->next is not less then min, do not update min value
+
+    /* Updating the min val */
+    mrmovq 8(%r10), %r8         # min = curr->next
+    rrmovq %r10, %r9            # prevMin = curr
+
+LoopAdjust: /* For loop variable adjustment before condition check */
+    mrmovq 8(%r10), %r10        # curr = curr->next
+    jmp ForLoop
+
+OutsideLoop: /* Outside the for loop */
+    rrmovq %rdi, %r14           # Save head in order to lose the original value when comparing
+    subq %r8, %r14              # if min == head
+    je RecursivePart            # Jump to recursive part if equal
+
+    mrmovq 8(%rdi), %r14        # temp = head->next
+    mrmovq 8(%r8), %r13         # Load min->next
+    rmmovq %r13, 8(%rdi)        # head->next = min->next
+    rrmovq %r8, %r12            # Load min
+    subq %r14, %r12             # Compare if temp == min
+    je UpdateMinNext
+
+    rmmovq %r14, 8(%r8)          # min->next = temp
+    rmmovq %rdi, 8(%r9)         # prevmin->next = head
+    jmp UpdateHead
+
+UpdateMinNext:
+    rmmovq %rdi, 8(%r8)          # min->next = head
+
+UpdateHead:
+    rrmovq %r8, %rdi            # head = min
+
+RecursivePart:
+    rrmovq %rdi, %r12           # Save head
+    mrmovq 8(%rdi), %rdi        # Initialize input head->next                                                                                                                                                
+    pushq %r12                  # Pushing the current head in order not to lose it
+    call selection_sort_rec
+    popq %r12                   # Getting the old head value
+    rmmovq %rax, 8(%r12)        # head->next = selection_sort_rec(head->next)
+    rrmovq %r12, %rax           # Save the head to return value
+
+Done:
+    ret                         # Return head
+.pos 0x800
+stack:
